@@ -1,0 +1,110 @@
+@CacheableTask
+class NodeExec extends SourceTask {
+    @Input
+    String executable;
+
+    @Input
+    @Optional
+    String nodeEnv;
+
+    @OutputFile
+    @Optional
+    File dest;
+
+    @OutputDirectory
+    @Optional
+    File destinationDirectory;
+
+    @Input
+    @Optional
+    List<String> args;
+
+    @InputFile
+    @PathSensitive(PathSensitivity.NONE)
+    File packageLockFile = getProject().file("package-lock.json");
+
+    void setDest(final String path) {
+        dest = getProject().file(path);
+    }
+
+    void setDestinationDirectory(final String path) {
+        destinationDirectory = getProject().file(path);
+    }
+
+    @TaskAction
+    void exec() {
+        // TODO: Allow inputs/outputs declared through properties? PropertyState?
+        getProject().exec(new Action<ExecSpec>() {
+            @Override
+            public void execute(ExecSpec execSpec) {
+                execSpec.executable(executable);
+                execSpec.args(args);
+            }
+        });
+    }
+}
+
+class NodePlugin implements Plugin<Project> {
+    // TODO: make this configurable
+    private static final String NODE_RUN_PREFIX = "node_run_";
+    private static final String NODE_BIN_PREFIX = "node_bin_";
+
+    public void apply(Project project) {
+        // TODO: add generic node exec task that can execute anything
+        generateTasksFromPackageJson(project, project.file("package.json"));
+        generateTasksFromNodeModules(project, getNodeModulesDirectory(project));
+        // TODO: Make inputs/outputs declarataion as easy as possible
+        // TODO: Create shortcuts for known set of popular inputs (e.g. .eslintrc, tslint config, webpack.config.json)
+    }
+
+    // Generate tasks from package.json scripts
+    private void generateTasksFromPackageJson(Project project, File packageJsonFile) {
+        def packageJson = packageJsonFile.withReader { r -> new groovy.json.JsonSlurper().parse(r) }
+        if (packageJson.scripts) {
+            for (Map.Entry<String, String> script : packageJson.scripts) {
+                // TODO: use value for arguments, use key for configuration
+                project.tasks.create(name: NODE_RUN_PREFIX + script.key, type: NodeExec);
+            }
+        }
+    }
+
+    // Generate tasks from node_modules/.bin/
+    private void generateTasksFromNodeModules(Project project, File nodeModulesDir) {
+        // List files in node_modules/.bin
+        for (File file : new File(nodeModulesDir, ".bin").listFiles()) {
+            if (file.isFile()) {
+                project.tasks.create(name: NODE_BIN_PREFIX + file.getName(), type: NodeExec);
+            }
+        }
+    }
+
+    File getNodeModulesDirectory(Project project) {
+        return project.file("node_modules");
+    }
+}
+
+apply plugin: NodePlugin
+
+task oldBusted(type: Exec) {
+    inputs.file("package-lock.json").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir("app").withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir("$buildDir/js")
+    outputs.cacheIf { true }
+
+    commandLine "$projectDir/node_modules/.bin/webpack", "app/index.js", "$buildDir/js/bundle.js"
+}
+
+task webpackExec(type: NodeExec) {
+    source = ["app", "index.html"]
+    dest = "$buildDir/js/bundle.js"
+
+    executable = "$projectDir/node_modules/.bin/webpack"
+    args = ["app/index.js", "$buildDir/js/bundle.js"]
+}
+
+project.task('node_run_webpack' {
+    source = ["app", "index.html"]
+    dest = "$buildDir/js/bundle.js"
+}
+
+// TODO(ew): Add TypeScript
