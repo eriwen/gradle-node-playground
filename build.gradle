@@ -53,7 +53,7 @@ class NodePlugin implements Plugin<Project> {
         // TODO: add generic node exec task that can execute anything
         generateTasksFromPackageJson(project, project.file("package.json"));
         generateTasksFromNodeModules(project, getNodeModulesDirectory(project));
-        // TODO: Make inputs/outputs declarataion as easy as possible
+        // TODO: Make inputs/outputs declaration as easy as possible
         // TODO: Create shortcuts for known set of popular inputs (e.g. .eslintrc, tslint config, webpack.config.json)
     }
 
@@ -102,9 +102,7 @@ task webpackExec(type: NodeExec) {
     args = ["app/index.js", "$buildDir/js/bundle.js"]
 }
 
-project.task('node_run_webpack' {
-    source = ["app", "index.html"]
-    dest = "$buildDir/js/bundle.js"
-}
+node_run_webpack.source = ["app", "index.html"]
+node_run_webpack.dest = "$buildDir/js/bundle.js"
 
 // TODO(ew): Add TypeScript
